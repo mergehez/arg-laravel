@@ -2,7 +2,7 @@
 
 namespace Arg\Laravel\Support;
 
-use Arg\Laravel\Models\ArgUser;
+use Arg\Laravel\Contracts\IUser;
 use Illuminate\Contracts\Auth\Authenticatable;
 
 class ArgState
@@ -12,21 +12,21 @@ class ArgState
 
     private static bool $checkedLoggedUser = false;
 
-    public static function authNullable(): ?ArgUser
+    public static function authNullable(): ?IUser
     {
         if (! self::$checkedLoggedUser) {
             self::$loggedUser = auth()->user();
             self::$checkedLoggedUser = true;
         }
 
-        /** @var ArgUser */
+        /** @var IUser */
         return self::$loggedUser;
     }
 
     /**
      * this is used when we are sure that user is logged in
      */
-    public static function auth(): ArgUser
+    public static function auth(): IUser
     {
         $user = self::authNullable();
         if (! $user) {

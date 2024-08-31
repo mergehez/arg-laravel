@@ -2,8 +2,8 @@
 
 namespace Arg\Laravel\Middleware;
 
+use Arg\Laravel\Contracts\IUser;
 use Arg\Laravel\Enums\ArgBaseEnum;
-use Arg\Laravel\Models\ArgUser;
 use Arg\Laravel\Support\ArgState;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -22,7 +22,7 @@ abstract class ArgHandleInertiaRequests extends Middleware
 
     protected $rootView = 'app';
 
-    abstract public function shareCustom(Request $request, bool $isPanel, ?ArgUser $user): array;
+    abstract public function shareCustom(Request $request, bool $isPanel, ?IUser $user): array;
 
     public function share(Request $request): array
     {
