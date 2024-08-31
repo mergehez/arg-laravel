@@ -1,0 +1,61 @@
+{
+    "name": "arg/laravel",
+    "description": "Arg-Laravel utilities",
+    "keywords": [
+        "arg",
+        "mergesoft",
+        "laravel"
+    ],
+    "homepage": "https://github.com/mergehez/arg-laravel",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Mazlum Ozdogan",
+            "email": "argesozdogan@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "laravel/framework": "^11.9"
+    },
+    "require-dev": {
+        "nunomaduro/collision": "^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Arg\\Laravel\\": "src",
+            "Arg\\Laravel\\Database\\Factories\\": "database/factories"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "test-coverage": "vendor/bin/pest --coverage",
+        "format": "vendor/bin/pint"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+
+            ],
+            "aliases": {
+
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
