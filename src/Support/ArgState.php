@@ -3,19 +3,36 @@
 namespace Arg\Laravel\Support;
 
 use Arg\Laravel\Contracts\IUser;
-use Illuminate\Contracts\Auth\Authenticatable;
+use Arg\Laravel\Controllers\ArgUserController;
+use Closure;
+use Illuminate\Database\Eloquent\Collection;
 
 class ArgState
 {
     public const int lastLocalizationUpdate = 1714481662;
-    private static ?Authenticatable $loggedUser;
 
-    private static bool $checkedLoggedUser = false;
+    protected static ?IUser $loggedUser;
+
+    protected static bool $checkedLoggedUser = false;
+
+    public static ?Closure $onUserSet = null;
+
+
+    private static ?Collection $activeUsers;
+
+    private static int $activeGuestCount = -1;
+
+    private static bool $checkedActiveUsers = false;
 
     public static function authNullable(): ?IUser
     {
         if (! self::$checkedLoggedUser) {
             self::$loggedUser = auth()->user();
+
+            if (self::$onUserSet) {
+                call_user_func(self::$onUserSet, self::$loggedUser);
+            }
+
             self::$checkedLoggedUser = true;
         }
 
@@ -34,5 +51,25 @@ class ArgState
         }
 
         return $user;
+    }
+
+
+    public static function getActiveGuestCount(): int
+    {
+        if (! self::$checkedActiveUsers && self::$loggedUser?->id) {
+            $activeUsersAndGuests = ArgUserController::activeUsersAndGuests();
+            self::$activeUsers = $activeUsersAndGuests['users'] ?? null;
+            self::$activeGuestCount = $activeUsersAndGuests['guests'] ?? null;
+            self::$checkedActiveUsers = true;
+        }
+
+        return self::$activeGuestCount;
+    }
+
+    public static function getActiveUsers(): ?Collection
+    {
+        self::getActiveGuestCount(); // to make sure activeUsers is populated
+
+        return self::$activeUsers;
     }
 }

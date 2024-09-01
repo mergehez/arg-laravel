@@ -13,16 +13,16 @@ abstract class ArgHandleInertiaRequests extends Middleware
     protected array $supportedLanguages;
 
     /**
-     * @param ArgBaseEnum|class-string  $displayLangEnum
+     * @param  ArgBaseEnum|class-string  $displayLangEnum
      */
-    public function __construct(string $displayLangEnum)
+    public function __construct(ArgBaseEnum|string $displayLangEnum)
     {
         $this->supportedLanguages = $displayLangEnum::getValues();
     }
 
     protected $rootView = 'app';
 
-    abstract public function shareCustom(Request $request, bool $isPanel, ?IUser $user): array;
+    abstract public function shareCustom(array &$base, Request $request, bool $isPanel, ?IUser $user): array;
 
     public function share(Request $request): array
     {
@@ -52,6 +52,6 @@ abstract class ArgHandleInertiaRequests extends Middleware
             },
         ]);
 
-        return array_merge($base, $this->shareCustom($request, $isPanel, $auth));
+        return $this->shareCustom($base, $request, $isPanel, $auth);
     }
 }
