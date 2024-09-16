@@ -177,6 +177,8 @@ class ArgMediaLibraryController extends ArgBaseController
 
             $extClient = $file->getClientOriginalExtension();
             $ext = $file->extension();
+            if(!$ext)
+                $ext = $extClient;
 
             if($ext === 'jpg' && $extClient === 'jpeg'){
                 $extClient = 'jpg';
@@ -204,7 +206,9 @@ class ArgMediaLibraryController extends ArgBaseController
             $imageSize = getimagesize($file);
             if (!$imageSize) { // if not image file (e.g. pdf)
                 try {
-                    $this->storage->put("$uploadPath/".$this->nameToTemplate($cfgBase, "$name$append", $format), $file->get());
+                    if(!$this->storage->put("$uploadPath/".$this->nameToTemplate($cfgBase, "$name$append", $format), $file->get())){
+                        abort(500, "Couldn't upload..");
+                    }
                 } catch (FileNotFoundException $e) {
                     abort(400, 'File not found!');
                 }
