@@ -5,6 +5,7 @@ namespace Arg\Laravel\Controllers;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Image as InterventionImage;
@@ -12,7 +13,6 @@ use Intervention\Image\Encoders\AutoEncoder;
 use Intervention\Image\Encoders\JpegEncoder;
 use Intervention\Image\Encoders\PngEncoder;
 use JsonException;
-use Route;
 
 class ArgMediaLibraryController extends ArgBaseController
 {
@@ -177,6 +177,12 @@ class ArgMediaLibraryController extends ArgBaseController
 
             $extClient = $file->getClientOriginalExtension();
             $ext = $file->extension();
+
+            if($ext === 'jpg' && $extClient === 'jpeg'){
+                $extClient = 'jpg';
+            }else if($ext === 'jpeg' && $extClient === 'jpg'){
+                $extClient = 'jpeg';
+            }
 
             if ($ext !== $extClient) {
                 abort(401, 'File extension mismatch! Actual extension is \'.'.$ext.'\' but \'.'.$extClient.'\' was given!');
