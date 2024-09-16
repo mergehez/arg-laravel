@@ -1,4 +1,5 @@
 {
+    "version": "0.0.2",
     "name": "mergehez/arg-laravel",
     "description": "Arg-Laravel utilities",
     "keywords": [
