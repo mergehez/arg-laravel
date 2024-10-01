@@ -9,8 +9,6 @@ use Illuminate\Database\Eloquent\Collection;
 
 class ArgState
 {
-    public const int lastLocalizationUpdate = 1714481662;
-
     protected static ?IUser $loggedUser;
 
     protected static bool $checkedLoggedUser = false;
