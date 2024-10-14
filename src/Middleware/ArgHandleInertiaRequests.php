@@ -32,6 +32,7 @@ abstract class ArgHandleInertiaRequests extends Middleware
         $sessionLifetime = intval(config('session.lifetime'));
 
         $base = array_merge(parent::share($request), [
+            'php_version' => phpversion(),
             'csrf_token' => csrf_token(),
             'auth' => [
                 'user' => $auth,
