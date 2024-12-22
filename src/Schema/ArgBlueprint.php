@@ -27,6 +27,15 @@ class ArgBlueprint // extends Blueprint
         //        parent::__construct($original->table);
     }
 
+    public function timestampInt(string $column, bool $defaultNow = true): ColumnDefinition
+    {
+        $res = $this->backingBlueprint->unsignedBigInteger($column);
+        if ($defaultNow) {
+            $res->default(DB::raw('(UNIX_TIMESTAMP())'));
+        }
+        return $res;
+    }
+
     /**
      * Add audit columns to the given table.
      * - created_at, created_by, updated_at, updated_by
@@ -34,17 +43,33 @@ class ArgBlueprint // extends Blueprint
      */
     public function addAuditColumns(bool $softDeletable, bool $updatable = true, bool $nullCreator = false, bool $nullUpdator = false): void
     {
-        $this->backingBlueprint->unsignedBigInteger('created_at')->default(DB::raw('(UNIX_TIMESTAMP())'));
+        $this->timestampInt('created_at');
         $this->foreignKey('App\Models\User', 'created_by', nullable: $nullCreator);
         if ($updatable) {
-            $this->backingBlueprint->unsignedBigInteger('updated_at')->default(DB::raw('(UNIX_TIMESTAMP())'));
+            $this->timestampInt('updated_at');
             $this->foreignKey('App\Models\User', 'updated_by', nullable: $nullUpdator);
         }
 
         if ($softDeletable) {
             //            $this->softDeletes();
-            $this->backingBlueprint->unsignedBigInteger('deleted_at')->nullable()->index();
+            $this->timestampInt('deleted_at', false)->nullable()->index();
             $this->foreignKey('App\Models\User', 'deleted_by', nullable: true);
+        }
+    }
+    /**
+     * Add audit columns to the given table.
+     * - created_at, updated_at
+     * - deleted_at, deleted_by (if soft deletable).
+     */
+    public function addAuditColumnsNoUser(bool $softDeletable, bool $updatable = true): void
+    {
+        $this->timestampInt('created_at');
+        if ($updatable) {
+            $this->timestampInt('updated_at');
+        }
+
+        if ($softDeletable) {
+            $this->timestampInt('deleted_at', false)->nullable()->index();
         }
     }
 
