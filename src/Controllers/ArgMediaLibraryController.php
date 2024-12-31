@@ -2,42 +2,50 @@
 
 namespace Arg\Laravel\Controllers;
 
-use Illuminate\Contracts\Filesystem\FileNotFoundException;
+use Arg\Laravel\Support\MediaLibConfig;
+use Arg\Laravel\Support\MediaLibConfigSize;
+use Arg\Laravel\Support\MediaLibFile;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Image as InterventionImage;
+use Intervention\Image\Decoders\DataUriImageDecoder;
 use Intervention\Image\Encoders\AutoEncoder;
 use Intervention\Image\Encoders\JpegEncoder;
 use Intervention\Image\Encoders\PngEncoder;
+use Intervention\Image\Laravel\Facades\Image as InterventionImage;
 use JsonException;
+use Throwable;
 
 class ArgMediaLibraryController extends ArgBaseController
 {
     private Filesystem $storage;
-    private array $config;
+    private MediaLibConfig $config;
 
     public function __construct()
     {
         $this->storage = Storage::disk('public-folder');
-        $requestConfig = request('config');
-        $requestConfig = is_string($requestConfig) ? json_decode($requestConfig, true) : ($requestConfig ?? [
-            'baseDir' => 'uploads',
-            // 'baseSize' => [ 'name' => 'xl', 'nameSuffix' => '-xl', 'scale' => 100 ],
-            'baseSize' => ['name' => 'Original', 'nameSuffix' => '', 'scale' => 100],
-            'resizes' => [
-                ['name' => 'Large', 'nameSuffix' => '-lg', 'scale' => 125],
-                ['name' => 'Medium', 'nameSuffix' => '-md', 'scale' => 75],
-                ['name' => 'Small', 'nameSuffix' => '-sm', 'scale' => 50],
-            ],
-            'extensions' => ['jpeg', 'jpg', 'png', 'webp', 'gif'],
-        ]);
-        $requestConfig['extensions'] ??= ['jpeg', 'jpg', 'png', 'webp', 'gif'];
+        // $requestConfig = request('config');
+        // $requestConfig = is_string($requestConfig)
+        //     ? json_decode($requestConfig, true) :
+        //     ($requestConfig ?? [
+        //         'baseDir' => 'uploads',
+        //         // 'baseSize' => [ 'name' => 'xl', 'nameSuffix' => '-xl', 'scale' => 100 ],
+        //         'baseSize' => ['name' => 'Original', 'nameSuffix' => '', 'scale' => 100],
+        //         'resizes' => [
+        //             ['name' => 'Large', 'nameSuffix' => '-lg', 'scale' => 125],
+        //             ['name' => 'Medium', 'nameSuffix' => '-md', 'scale' => 75],
+        //             ['name' => 'Small', 'nameSuffix' => '-sm', 'scale' => 50],
+        //         ],
+        //         'extensions' => ['jpeg', 'jpg', 'png', 'webp', 'gif'],
+        //     ]);
+        // $requestConfig['extensions'] ??= ['jpeg', 'jpg', 'png', 'webp', 'gif'];
 
-        $this->config = $requestConfig;
-        $this->config['allSizeConfigs'] = array_merge([$this->config['baseSize']], $this->config['resizes']);
+        $this->config = MediaLibConfig::createFromRequest('config');
+        // $this->config['allSizeConfigs'] =
+        //     array_merge([$this->config->baseSize], $this->config['resizes']);
     }
 
     public static function registerRoutes($middleware = ['auth:web']): void
@@ -54,7 +62,8 @@ class ArgMediaLibraryController extends ArgBaseController
         });
     }
 
-    public function ckeditorUpload(Request $request){
+    public function ckeditorUpload(Request $request)
+    {
         // $data = $request->validate([
         //     'files' => ['required'],
         // ]);
@@ -62,7 +71,7 @@ class ArgMediaLibraryController extends ArgBaseController
 
         // $request->merge([
         //     'files' => [$request->file('upload')],
-        //     'path' => $this->config['baseDir'],
+        //     'path' => $this->config->baseDir,
         //     'settings' => json_encode([['format' => 'jpeg', 'name' => 'New Image']])
         // ]);
 
@@ -80,10 +89,10 @@ class ArgMediaLibraryController extends ArgBaseController
             'extensions' => [$ext],
         ];
 
-        $this->_uploadFiles([$file], $this->config['baseDir'], json_encode([['format' => $ext, 'name' => $name]]));
+        $this->_uploadFiles([$file], $this->config->baseDir, json_encode([['format' => $ext, 'name' => $name]]));
 
         return response()->json([
-            'url' => url($this->config['baseDir'].'/'.$name.'.'.$ext)
+            'url' => url($this->config->baseDir.'/'.$name.'.'.$ext)
         ]);
     }
 
@@ -134,8 +143,9 @@ class ArgMediaLibraryController extends ArgBaseController
 
         foreach ($fileNames as $fileNameNoSuffix) {
             $pathInfo = pathinfo($fileNameNoSuffix);
-            // $nameWithoutSuffix = str_replace($this->config['baseSize']['nameSuffix'] . '.' . $ext, '' , $pathInfo['basename']);
-            foreach ($this->config['allSizeConfigs'] as $cfg) {
+            // $nameWithoutSuffix = str_replace($this->config->baseSize['nameSuffix'] . '.' . $ext, '' , $pathInfo['basename']);
+            $allSizeConfigs = $this->config->allSizeConfigs();
+            foreach ($allSizeConfigs as $cfg) {
                 $imgPath = $path.'/'.$this->nameToTemplate($cfg, $pathInfo['filename'], $pathInfo['extension']);
                 $this->storage->delete($imgPath);
             }
@@ -145,14 +155,74 @@ class ArgMediaLibraryController extends ArgBaseController
         return true;
     }
 
+    private function _fromBase64(string $base64File)
+    {
+        // Get file data base64 string
+        $fileData = base64_decode(Arr::last(explode(',', $base64File)));
+        return $fileData;
+
+        // // Create temp file and get its absolute path
+        // $tempFile = tmpfile();
+        // $tempFilePath = stream_get_meta_data($tempFile)['uri'];
+        //
+        // // Save file data in file
+        // file_put_contents($tempFilePath, $fileData);
+        //
+        // $tempFileObject = new File($tempFilePath);
+        // $file = new UploadedFile(
+        //     $tempFileObject->getPathname(),
+        //     $tempFileObject->getFilename(),
+        //     $tempFileObject->getMimeType(),
+        //     0,
+        //     true // Mark it as test, since the file isn't from real HTTP POST.
+        // );
+        //
+        // // Close this file after response is sent.
+        // // Closing the file will cause to remove it from temp director!
+        // app()->terminating(function () use ($tempFile) {
+        //     fclose($tempFile);
+        // });
+        //
+        // // return UploadedFile object
+        // return $file;
+    }
+
     public function uploadFiles(Request $request): bool
     {
+        $settings = $request->input('settings');
+        $files = $request->file('files');
+        if (!$files) {
+            $files = array_map(function ($base64Url) {
+                $ext = explode(';base64,', $base64Url)[0];
+                $ext = explode('/', $ext)[1];
+                // $file = InterventionImage::read(base64_decode(explode(';base64,', $base64Url)[1]), new DataUriImageDecoder());
+                $file = InterventionImage::read($base64Url, new DataUriImageDecoder());
+                return new MediaLibFile(
+                    ext: $ext,
+                    extClient: $ext,
+                    dimensions: [$file->width(), $file->height()],
+                    file: $file
+                );
+                // return $this->_fromBase64($file);
+            }, $request->input('files'));
+        } else {
+            $files = array_map(function ($file) {
+                return new MediaLibFile(
+                    ext: $file->extension(),
+                    extClient: $file->getClientOriginalExtension(),
+                    dimensions: $file->dimensions() ?? getimagesize($file),
+                    file: InterventionImage::read($file)
+                );
+            }, $files);
+        }
+        // dd($files);
         return $this->_uploadFiles(
-            $request->file('files'),
+            $files,
             $request->input('path'),
             $request->input('settings')
         );
     }
+
     private function _uploadFiles($files, $path, $settingsStr): bool
     {
         // // dd($request->all());
@@ -171,30 +241,16 @@ class ArgMediaLibraryController extends ArgBaseController
         }
         $uploadPath = $this->ensureBaseDir($path);
 
+        /** @var MediaLibFile $file */
         foreach ($files as $index => $file) {
             $format = $settings[$index]['format'];
             $name = preg_replace('/\s+/', '-', $settings[$index]['name']);
 
-            $extClient = $file->getClientOriginalExtension();
-            $ext = $file->extension();
-            if(!$ext)
-                $ext = $extClient;
-
-            if($ext === 'jpg' && $extClient === 'jpeg'){
-                $extClient = 'jpg';
-            }else if($ext === 'jpeg' && $extClient === 'jpg'){
-                $extClient = 'jpeg';
-            }
-
-            if ($ext !== $extClient) {
-                abort(401, 'File extension mismatch! Actual extension is \'.'.$ext.'\' but \'.'.$extClient.'\' was given!');
-            }
-
-            if (!in_array($ext, $this->config['extensions'])) {
+            if (!in_array($file->ext, $this->config->extensions)) {
                 continue;
             }
 
-            $cfgBase = $this->config['baseSize'];
+            $cfgBase = $this->config->baseSize;
 
             $append = '';
             $counter = 1;
@@ -202,43 +258,26 @@ class ArgMediaLibraryController extends ArgBaseController
                 $append = "-$counter";
                 $counter++;
             }
-
-            $imageSize = getimagesize($file);
+            // $imageSize = $file->dimensions() ?? getimagesize($file);
+            $imageSize = $file->dimensions;
             if (!$imageSize) { // if not image file (e.g. pdf)
                 try {
-                    if(!$this->storage->put("$uploadPath/".$this->nameToTemplate($cfgBase, "$name$append", $format), $file->get())){
+                    if (!$this->storage->put("$uploadPath/".$this->nameToTemplate($cfgBase, "$name$append", $format), $file->getContent())) {
                         abort(500, "Couldn't upload..");
                     }
-                } catch (FileNotFoundException $e) {
-                    abort(400, 'File not found!');
+                } catch (Throwable $e) {
+                    abort(400, 'File not found! '.$e->getMessage());
                 }
                 continue;
             }
 
             // from here on, it's image file
 
-            $originalImage = InterventionImage::read($file);
+            $originalImage = $file->file;//InterventionImage::read($file);
             [$w, $h] = $imageSize;
-            if (array_key_exists('uploadConstraints', $cfgBase)) {
-                if (array_key_exists('required', $cfgBase['uploadConstraints'])) {
-                    $w = $cfgBase['uploadConstraints']['required']['width'];
-                    $h = $cfgBase['uploadConstraints']['required']['height'];
-                } else {
-                    $maxWidth = $cfgBase['uploadConstraints']['max']['width'] ?? null;
-                    $maxHeight = $cfgBase['uploadConstraints']['max']['height'] ?? null;
-                    if (!$maxWidth) {
-                        $scale = $h > $maxHeight ? $maxHeight / $h : 1;
-                    } else {
-                        if (!$maxHeight) {
-                            $scale = $w > $maxWidth ? $maxWidth / $w : 1;
-                        } else {
-                            $scale = min($maxWidth / $w, $maxHeight / $h, 1); // last arg '1': don't let it scale up
-                        }
-                    }
+            if ($cfgBase->uploadConstraints->hasAny()) {
+                [$w, $h] = $cfgBase->uploadConstraints->calcWidthHeight($imageSize);
 
-                    $w *= $scale;
-                    $h *= $scale;
-                }
                 if ($w !== $imageSize[0] && $h !== $imageSize[1]) {
                     $originalImage = $originalImage->resize($w, $h);
                 } else {
@@ -251,18 +290,17 @@ class ArgMediaLibraryController extends ArgBaseController
                 }
             }
             $encoder = $format == 'jpeg' || $format == 'jpg' ? new JpegEncoder() : ($format == 'png' ? new PngEncoder() : new AutoEncoder());
-
             $originalImage = $originalImage->encode($encoder);// , $cfgBase['scale']);
 
             $this->storage->put("$uploadPath/".$this->nameToTemplate($cfgBase, "$name$append", $format), $originalImage);
 
-            foreach ($this->config['resizes'] as $cfg) {
-                $newW = $w === null ? null : round($w * $cfg['scale'] / 100);
-                $newH = $h === null ? null : round($h * $cfg['scale'] / 100);
+            foreach ($this->config->resizes as $cfg) {
+                $newW = $w === null ? null : round($w * $cfg->scale / 100);
+                $newH = $h === null ? null : round($h * $cfg->scale / 100);
 
-                $imageOutput = InterventionImage::read($file)
-                    ->resize($newW, $newH)//, $w === null || $h === null ? static fn ($c)  => $c->aspectRatio() : null)
-                    ->encode($encoder);
+                $imageOutput = $file->file //InterventionImage::read($file)
+                ->resize($newW, $newH)     //, $w === null || $h === null ? static fn ($c)  => $c->aspectRatio() : null)
+                ->encode($encoder);
                 $this->storage->put("$uploadPath/".$this->nameToTemplate($cfg, "$name$append", $format), $imageOutput);
             }
         }
@@ -272,7 +310,7 @@ class ArgMediaLibraryController extends ArgBaseController
     private function getFiles(string $directory): array
     {
         $files = $this->storage->files($directory);
-        return array_filter($files, fn($file) => in_array(pathinfo($file, PATHINFO_EXTENSION), $this->config['extensions']));
+        return array_filter($files, fn($file) => in_array(pathinfo($file, PATHINFO_EXTENSION), $this->config->extensions));
     }
 
     public function setup(Request $request): array
@@ -284,9 +322,9 @@ class ArgMediaLibraryController extends ArgBaseController
 
         $fileOnlyMode = $request->get('filesOnly', false);
 
-        $directories = $fileOnlyMode ? [] : $this->storage->allDirectories($this->config['baseDir']);
+        $directories = $fileOnlyMode ? [] : $this->storage->allDirectories($this->config->baseDir);
         if (!$fileOnlyMode) {
-            $directories = array_merge([$this->config['baseDir']], $directories);
+            $directories = array_merge([$this->config->baseDir], $directories);
         }
         // return $directories;
         $directories_array = [];
@@ -318,25 +356,33 @@ class ArgMediaLibraryController extends ArgBaseController
         }
 
         $directory = $this->ensureBaseDir($request->input('path'));
-        $files = $this->getFiles($directory);
+        $files = collect($this->getFiles($directory))->map(fn($f) => [$f, pathinfo($f)]);
         // dd($directory, $files);
         $files_array = collect();
+        $filesToSkip = [];
 
+        /* @var $iValue array */
         foreach ($files as $iValue) {
             // foreach ($files as $single_file){
-            $single_file = $iValue;
-            $pathInfo = pathinfo($single_file);
+            [$single_file, $pathInfo] = $iValue;
+            // $pathInfo = pathinfo($single_file);
+
+            // if ($filesToSkip->contains($pathInfo['basename'])) {
+            if (in_array($pathInfo['basename'], $filesToSkip)) {
+                continue;
+            }
+
             $ext = $pathInfo['extension'];
 
-            if (!in_array($ext, $this->config['extensions'])) {
+            if (!in_array($ext, $this->config->extensions)) {
                 continue;
             }
 
             //check if the name of file matches the template of base size config
-            if (!str_contains($pathInfo['basename'], $this->config['baseSize']['nameSuffix'].'.'.$ext)) {
+            if (!str_contains($pathInfo['basename'], $this->config->baseSize->nameSuffix.'.'.$ext)) {
                 continue;
             }
-            $nameWithoutSuffix = str_replace($this->config['baseSize']['nameSuffix'].'.'.$ext, '', $pathInfo['basename']);
+            $nameWithoutSuffix = str_replace($this->config->baseSize->nameSuffix.'.'.$ext, '', $pathInfo['basename']);
 
             $file_info = [];
             $file_info['name'] = $nameWithoutSuffix.'.'.$ext;
@@ -346,14 +392,16 @@ class ArgMediaLibraryController extends ArgBaseController
             }
 
             $file_info['url'] = [
-                $this->config['baseSize']['name'] => self::removeDomain(url($single_file)),
+                $this->config->baseSize->name => self::removeDomain(url($single_file)),
             ];
-            foreach ($this->config['resizes'] as $cfg) {
+            foreach ($this->config->resizes as $cfg) {
                 $imgPath = $this->nameToTemplate($cfg, $nameWithoutSuffix, $ext);
-                if (!file_exists($imgPath)) {
+                $existing = $files->filter(fn($f) => $f[1]['basename'] === $imgPath);
+                if (count($existing) === 0) {
                     continue;
                 }
-                $file_info['url'][$cfg['name']] = self::removeDomain(url($imgPath));
+                $filesToSkip[] = $imgPath;
+                $file_info['url'][$cfg->name] = self::removeDomain(url($imgPath));
             }
 
             $file_info['time'] = $this->storage->lastModified($single_file);
@@ -391,16 +439,17 @@ class ArgMediaLibraryController extends ArgBaseController
 
             $result = [
                 'fileNameNoSuffix' => $fileNameNoSuffix,
-                'selected' => $this->config['baseSize']['name'],
+                'selected' => $this->config->baseSize->name,
 
                 'select' => [
-                    'url' => self::removeDomain(url($this->nameToTemplate($this->config['baseSize'], $pathNoExt, $ext))),
+                    'url' => self::removeDomain(url($this->nameToTemplate($this->config->baseSize, $pathNoExt, $ext))),
                     'alt' => ''
                 ],
                 'values' => [],
             ];
 
-            foreach ($this->config['allSizeConfigs'] as $cfg) {
+            $allSizeConfigs = $this->config->allSizeConfigs();
+            foreach ($allSizeConfigs as $cfg) {
                 $imgPath = $this->nameToTemplate($cfg, $pathNoExt, $ext);
                 if (!file_exists($imgPath)) {
                     $debug[] = $imgPath;
@@ -409,7 +458,7 @@ class ArgMediaLibraryController extends ArgBaseController
                 }
                 $imgSize = getimagesize($this->storage->path($imgPath)) ?: [0, 0];
 
-                $result['values'][$cfg['name']] = [
+                $result['values'][$cfg->name] = [
                     'path' => $imgPath,
                     'url' => self::removeDomain(url($imgPath)),
                     'size' => $this->fileSizeFormat($imgPath),
@@ -422,7 +471,7 @@ class ArgMediaLibraryController extends ArgBaseController
                 return ['error' => $debug];
             }
 
-            $baseVal = $result['values'][$this->config['baseSize']['name']];
+            $baseVal = $result['values'][$this->config->baseSize->name];
             $result['aspectRatio'] = $baseVal['height'] ? $baseVal['width'] / $baseVal['height'] : 0;
             $files[] = $result;
         }
@@ -430,7 +479,8 @@ class ArgMediaLibraryController extends ArgBaseController
         return ['files' => $files];
     }
 
-    public function renameFile(Request $request){
+    public function renameFile(Request $request)
+    {
         $data = $request->validate([
             'old' => ['required', 'string'],
             'new' => ['required', 'string'],
@@ -439,7 +489,7 @@ class ArgMediaLibraryController extends ArgBaseController
         $oldPath = $this->ensureBaseDir($data['old']);
         $newPath = $this->ensureBaseDir($data['new']);
 
-        if(!$this->storage->move($oldPath, $newPath)){
+        if (!$this->storage->move($oldPath, $newPath)) {
             abort(500, 'Could not rename file!');
         }
 
@@ -448,20 +498,20 @@ class ArgMediaLibraryController extends ArgBaseController
 
     private function ensureBaseDir($path): string
     {
-        if(str_starts_with($path, $this->config['baseDir'])){
+        if (str_starts_with($path, $this->config->baseDir)) {
             return $path;
         }
 
-        return $this->config['baseDir'].'/'.Str::ltrim($path, '/');
-        // return $this->config['baseDir'] . '/' . (trim(Str::replace($this->config['baseDir'] , '' , $path), '/') ?: '');
+        return $this->config->baseDir.'/'.Str::ltrim($path, '/');
+        // return $this->config->baseDir . '/' . (trim(Str::replace($this->config->baseDir , '' , $path), '/') ?: '');
     }
     // private function ensureMaxUploadDimensions($path){
-    //     return $this->config['baseDir'] . "/" . (trim(Str::replace($this->config['baseDir'] , '' , $path), '/') ?: '');
+    //     return $this->config->baseDir . "/" . (trim(Str::replace($this->config->baseDir , '' , $path), '/') ?: '');
     // }
 
-    private function nameToTemplate($sizeConf, $name, $ext): string
+    private function nameToTemplate(MediaLibConfigSize $sizeConf, $name, $ext): string
     {
-        return $name.$sizeConf['nameSuffix'].'.'.$ext;
+        return $name.$sizeConf->nameSuffix.'.'.$ext;
     }
 
     private function fileSizeFormat($path): string
