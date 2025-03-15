@@ -20,7 +20,8 @@ class MediaLibConstraints
 
     public function hasAny(): bool
     {
-        return $this->required || $this->max;
+        return ($this->required && ($this->required->width || $this->required->height))
+            || ($this->max && ($this->max->width || $this->max->height));
     }
 
     public function calcWidthHeight($imageSize): array
